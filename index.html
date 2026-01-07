@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>معًا نتكلم بثقة | دعم مصابي التأتأة</title>
+<style>
+body {font-family:'Tahoma', Arial,sans-serif; background:#f6f8fa; margin:0; padding:0;}
+header {background: linear-gradient(135deg, #2b7cff, #5fa8ff); color:white; text-align:center; padding:50px 20px;}
+header h1 {margin:0; font-size:32px;}
+header p {font-size:18px; max-width:700px; margin:auto;}
+section {padding:40px 20px; max-width:900px; margin:auto;}
+button {padding:10px 20px; border:none; border-radius:8px; background:#2b7cff; color:white; cursor:pointer; font-size:16px;}
+input, select {padding:10px; width:100%; margin-bottom:20px; border-radius:8px; border:1px solid #ccc;}
+#testArea {display:none; text-align:center;}
+#timer {font-weight:bold; margin:15px 0;}
+#result {font-size:20px; font-weight:bold; margin:15px 0;}
+#videoArea {display:none; margin-top:20px;}
+canvas {position:fixed; top:0; left:0; pointer-events:none; z-index:9999;}
+</style>
+</head>
+<body>
+
+<header>
+<h1>معًا نتكلم بثقة</h1>
+<p>منصة داعمة لمصابي التأتأة، خطوات عملية لبناء طلاقة وثقة.</p>
+</header>
+
+<section id="formArea">
+<h2>ابدأ الآن</h2>
+<input type="text" id="name" placeholder="اسمك" required>
+<input type="number" id="age" placeholder="عمرك" required>
+<button onclick="startTest()">ابدأ الاختبار</button>
+</section>
+
+<section id="testArea">
+<h2>اختبار الطلاقة الصوتية</h2>
+<p>اقرأ الجملة بصوت واضح: <strong>"أنا أستطيع التحدث بثقة وهدوء"</strong></p>
+<button id="recordBtn" onclick="recordVoice()">🎙️ تسجيل الصوت</button>
+<div id="timer"></div>
+<div id="result"></div>
+<div id="videoArea">
+<h3>فيديو تدريبي مقترح</h3>
+<iframe width="100%" height="315" src="https://www.youtube.com/embed/1zXb5b8b8b8" allowfullscreen></iframe>
+</div>
+<button id="reTestBtn" onclick="reTest()" style="display:none; margin-top:15px;">إعادة الاختبار</button>
+<canvas id="confetti"></canvas>
+</section>
+
+<script>
+let audioChunks = [];
+let mediaRecorder;
+let timerInterval;
+
+function startTest(){
+  document.getElementById('formArea').style.display='none';
+  document.getElementById('testArea').style.display='block';
+  document.getElementById('result').innerText='';
+  document.getElementById('videoArea').style.display='none';
+  document.getElementById('reTestBtn').style.display='none';
+  document.getElementById('timer').innerText='';
+}
+
+function recordVoice(){
+  navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.ondataavailable = e=>audioChunks.push(e.data);
+    mediaRecorder.onstop = analyzeAudio;
+    mediaRecorder.start();
+
+    let seconds=0;
+    timerInterval = setInterval(()=>{
+      seconds++;
+      document.getElementById('timer').innerText='ثواني: '+seconds;
+      if(seconds>=6){
+        clearInterval(timerInterval);
+        mediaRecorder.stop();
+      }
+    },1000);
+  });
+}
+
+function analyzeAudio(){
+  const audioBlob = new Blob(audioChunks,{type:'audio/webm'});
+  const reader = new FileReader();
+  reader.readAsArrayBuffer(audioBlob);
+  reader.onloadend = ()=>{
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    audioContext.decodeAudioData(reader.result, buffer=>{
+      const channelData = buffer.getChannelData(0);
+      const avgVolume = channelData.reduce((a,b)=>a+Math.abs(b),0)/channelData.length;
+      const pauses = channelData.filter(v=>Math.abs(v)<0.01).length/channelData.length;
+
+      let score = 1 - pauses - avgVolume*0.1; // معيار تقريبي
+      score = Math.min(Math.max(score,0),1);
+
+      const resultDiv = document.getElementById('result');
+      if(score>0.85){
+        resultDiv.innerText='🎉 صوتك ممتاز! مبروك!';
+        runConfetti();
+        document.getElementById('videoArea').style.display='none';
+      } else if(score>0.6){
+        resultDiv.innerText='⚠️ تحتاج لتحسين الطلاقة. شاهد الفيديو التدريبي.';
+        document.getElementById('videoArea').style.display='block';
+      } else {
+        resultDiv.innerText='❌ تأتأة واضحة. تابع الفيديو التدريبي.';
+        document.getElementById('videoArea').style.display='block';
+      }
+      document.getElementById('reTestBtn').style.display='inline-block';
+    });
+  };
+}
+
+function reTest(){
+  document.getElementById('result').innerText='';
+  document.getElementById('videoArea').style.display='none';
+  document.getElementById('reTestBtn').style.display='none';
+  document.getElementById('timer').innerText='';
+  startTest();
+}
+
+function runConfetti(){
+  const canvas = document.getElementById('confetti');
+  const ctx = canvas.getContext('2d');
+  canvas.width=window.innerWidth;
+  canvas.height=window.innerHeight;
+  const particles=[];
+  for(let i=0;i<150;i++){
+    particles.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,dx:(Math.random()-0.5)*4,dy:(Math.random()-0.5)*10,color:`hsl(${Math.random()*360},100%,50%)`});
+  }
+  let frames=0;
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p=>{
+      ctx.fillStyle=p.color;
+      ctx.fillRect(p.x,p.y,5,5);
+      p.x+=p.dx;
+      p.y+=p.dy;
+      if(p.y>canvas.height)p.y=0;
+      if(p.x>canvas.width)p.x=0;
+    });
+    frames++;
+    if(frames<150)requestAnimationFrame(draw);
+  }
+  draw();
+}
+</script>
+
+</body>
+</html>
